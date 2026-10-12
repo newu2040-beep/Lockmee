@@ -1,0 +1,6 @@
+{
+  "name": "LockMe",
+  "description": "Material You Expressive Android App Locker with biometric security and privacy-first protection.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
