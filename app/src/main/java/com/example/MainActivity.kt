@@ -37,6 +37,8 @@ import com.example.ui.home.HomeScreen
 import com.example.ui.home.HomeViewModel
 import com.example.ui.security.SecurityScreen
 import com.example.ui.security.SecurityViewModel
+import com.example.ui.intruders.IntruderGalleryScreen
+import com.example.ui.intruders.IntruderViewModel
 import com.example.ui.settings.SettingsScreen
 import com.example.ui.settings.SettingsViewModel
 import com.example.ui.setup.PermissionsScreen
@@ -50,7 +52,8 @@ enum class MainDestination(val label: String) {
     APPS("Apps"),
     SECURITY("Security"),
     SETTINGS("Settings"),
-    PERMISSIONS("Permissions")
+    PERMISSIONS("Permissions"),
+    INTRUDER_GALLERY("Intruders")
 }
 
 class MainActivity : AppCompatActivity() {
@@ -72,6 +75,10 @@ class MainActivity : AppCompatActivity() {
 
     private val settingsViewModel: SettingsViewModel by viewModels {
         SettingsViewModel.Factory(applicationContext, dataStore)
+    }
+
+    private val intruderViewModel: IntruderViewModel by viewModels {
+        IntruderViewModel.Factory(applicationContext, dataStore)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -113,7 +120,8 @@ class MainActivity : AppCompatActivity() {
                         homeViewModel = homeViewModel,
                         appsViewModel = appsViewModel,
                         securityViewModel = securityViewModel,
-                        settingsViewModel = settingsViewModel
+                        settingsViewModel = settingsViewModel,
+                        intruderViewModel = intruderViewModel
                     )
                 }
             }
@@ -141,13 +149,14 @@ fun MainAppScaffold(
     homeViewModel: HomeViewModel,
     appsViewModel: AppsViewModel,
     securityViewModel: SecurityViewModel,
-    settingsViewModel: SettingsViewModel
+    settingsViewModel: SettingsViewModel,
+    intruderViewModel: IntruderViewModel
 ) {
     var currentDestination by remember { mutableStateOf(MainDestination.HOME) }
 
     Scaffold(
         bottomBar = {
-            if (currentDestination != MainDestination.PERMISSIONS) {
+            if (currentDestination != MainDestination.PERMISSIONS && currentDestination != MainDestination.INTRUDER_GALLERY) {
                 NavigationBar(
                     modifier = Modifier.testTag("main_bottom_nav")
                 ) {
@@ -226,6 +235,7 @@ fun MainAppScaffold(
             MainDestination.SECURITY -> {
                 SecurityScreen(
                     viewModel = securityViewModel,
+                    onNavigateToIntruderGallery = { currentDestination = MainDestination.INTRUDER_GALLERY },
                     modifier = Modifier.padding(innerPadding)
                 )
             }
@@ -243,6 +253,15 @@ fun MainAppScaffold(
                     },
                     onBack = {
                         currentDestination = MainDestination.HOME
+                    },
+                    modifier = Modifier.padding(innerPadding)
+                )
+            }
+            MainDestination.INTRUDER_GALLERY -> {
+                IntruderGalleryScreen(
+                    viewModel = intruderViewModel,
+                    onBack = {
+                        currentDestination = MainDestination.SECURITY
                     },
                     modifier = Modifier.padding(innerPadding)
                 )

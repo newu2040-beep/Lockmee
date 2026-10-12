@@ -1,9 +1,15 @@
 package com.example.ui.security
 
+import android.app.Activity
+import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -11,36 +17,63 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.example.data.preferences.SettingsDataStore
+import com.example.data.repository.SecurityEventRepository
+import com.example.data.security.CryptoHelper
 import com.example.domain.model.AuthMethod
 import com.example.domain.model.RelockPolicy
+import com.example.domain.model.UserSecuritySettings
+import com.example.platform.biometric.BiometricHelper
+import com.example.platform.camera.IntruderCameraManager
+import com.example.platform.localization.appString
 import com.example.ui.components.SecurePinKeypad
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SecurityScreen(
     viewModel: SecurityViewModel,
+    onNavigateToIntruderGallery: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        viewModel.checkHardware()
+        if (isGranted) {
+            viewModel.setIntruderDetectionEnabled(true)
+        }
+    }
 
     var showChangePinModal by remember { mutableStateOf(false) }
-    var changeStep by remember { mutableStateOf(1) } // 1: Enter current, 2: Enter new, 3: Confirm new
+    var changeStep by remember { mutableStateOf(1) }
     var enteredCurrentPin by remember { mutableStateOf("") }
     var enteredNewPin by remember { mutableStateOf("") }
     var enteredConfirmPin by remember { mutableStateOf("") }
     var pinModalError by remember { mutableStateOf<String?>(null) }
+
+    val isCompact = uiState.settings.compactModeEnabled
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "Security Center",
+                        text = appString("security_center"),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -53,11 +86,12 @@ fun SecurityScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = if (isCompact) 12.dp else 16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isCompact) 12.dp else 16.dp)
         ) {
+            // 1. CREDENTIAL PASSCODE CARD
             item {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "Authentication Method",
                     style = MaterialTheme.typography.titleMedium,
@@ -66,7 +100,6 @@ fun SecurityScreen(
                 )
             }
 
-            // Current Credential Card
             item {
                 Card(
                     shape = RoundedCornerShape(20.dp),
@@ -95,7 +128,7 @@ fun SecurityScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Protected with PBKDF2 cryptographic hashing",
+                                    text = "Encrypted with PBKDF2 Hmac-SHA256 & unique device salt",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -120,20 +153,131 @@ fun SecurityScreen(
                         ) {
                             Icon(Icons.Default.LockReset, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Change PIN Passcode")
+                            Text(appString("change_pin"))
                         }
                     }
                 }
             }
 
-            // Biometrics Section
+            // 2. INTRUDER DETECTION
             item {
                 Text(
-                    text = "Biometric Verification",
+                    text = appString("intruder_detection"),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            item {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CameraAlt,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Intruder Secret Selfie",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = appString("intruder_desc"),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            Switch(
+                                checked = uiState.settings.intruderCaptureEnabled,
+                                onCheckedChange = { isChecked ->
+                                    if (isChecked) {
+                                        if (uiState.isCameraPermissionGranted) {
+                                            viewModel.setIntruderDetectionEnabled(true)
+                                        } else {
+                                            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                        }
+                                    } else {
+                                        viewModel.setIntruderDetectionEnabled(false)
+                                    }
+                                }
+                            )
+                        }
+
+                        if (uiState.settings.intruderCaptureEnabled) {
+                            HorizontalDivider()
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Capture after attempts:",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+
+                                SingleChoiceSegmentedButtonRow {
+                                    listOf(1, 2, 3, 5).forEachIndexed { index, threshold ->
+                                        SegmentedButton(
+                                            shape = SegmentedButtonDefaults.itemShape(index = index, count = 4),
+                                            selected = uiState.settings.intruderThresholdAttempts == threshold,
+                                            onClick = { viewModel.setIntruderThreshold(threshold) },
+                                            label = { Text("$threshold") }
+                                        )
+                                    }
+                                }
+                            }
+
+                            FilledTonalButton(
+                                onClick = onNavigateToIntruderGallery,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PhotoLibrary,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("View Intruder Photo Gallery")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. BIOMETRICS SECTION
+            item {
+                Text(
+                    text = appString("biometrics"),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
 
@@ -162,7 +306,7 @@ fun SecurityScreen(
                                 )
                                 Column {
                                     Text(
-                                        text = "Biometric Prompt",
+                                        text = "Biometric / Face Prompt",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -185,14 +329,14 @@ fun SecurityScreen(
                 }
             }
 
-            // Relocking Policy Section
+            // 4. CUSTOM RELOCK TIMER & SLIDER
             item {
                 Text(
-                    text = "Relocking Behavior & Grace Period",
+                    text = appString("relock_timer"),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
 
@@ -202,44 +346,96 @@ fun SecurityScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        RelockPolicy.values().forEach { policy ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { viewModel.setRelockPolicy(policy) }
-                                    .padding(vertical = 10.dp, horizontal = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        val currentSeconds = if (uiState.settings.relockPolicy == RelockPolicy.CUSTOM) {
+                            uiState.settings.customRelockSeconds
+                        } else {
+                            when (uiState.settings.relockPolicy) {
+                                RelockPolicy.IMMEDIATE -> 0
+                                RelockPolicy.GRACE_15S -> 15
+                                RelockPolicy.GRACE_30S -> 30
+                                RelockPolicy.GRACE_1M -> 60
+                                RelockPolicy.GRACE_3M -> 180
+                                RelockPolicy.GRACE_5M -> 300
+                                RelockPolicy.GRACE_10M -> 600
+                                RelockPolicy.SCREEN_OFF -> -1
+                                else -> 0
+                            }
+                        }
+
+                        val timeDisplay = when {
+                            currentSeconds == 0 -> "Immediately on leave"
+                            currentSeconds == -1 -> "When screen turns off"
+                            currentSeconds < 60 -> "$currentSeconds seconds grace"
+                            else -> "${currentSeconds / 60}m ${if (currentSeconds % 60 > 0) "${currentSeconds % 60}s" else ""} grace"
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Selected Delay:",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Badge(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    RadioButton(
-                                        selected = uiState.settings.relockPolicy == policy,
-                                        onClick = { viewModel.setRelockPolicy(policy) },
-                                        modifier = Modifier.testTag("policy_radio_${policy.name}")
-                                    )
-                                    Column {
-                                        Text(
-                                            text = policy.displayName,
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        Text(
-                                            text = when (policy) {
-                                                RelockPolicy.IMMEDIATE -> "Locks immediately when exiting the protected app"
-                                                RelockPolicy.GRACE_30S -> "Temporary 30 seconds pass before requiring re-auth"
-                                                RelockPolicy.GRACE_1M -> "Temporary 60 seconds pass for frequent app switching"
-                                                RelockPolicy.GRACE_5M -> "Temporary 5 minutes pass for extended reading"
-                                                RelockPolicy.SCREEN_OFF -> "Keeps unlocked until device screen turns off"
-                                            },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.outline
-                                        )
-                                    }
-                                }
+                                Text(timeDisplay, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(4.dp))
+                            }
+                        }
+
+                        // Material 3 Expressive Slider (0s to 600s / 10 minutes)
+                        Slider(
+                            value = if (currentSeconds < 0) 0f else currentSeconds.toFloat(),
+                            onValueChange = { secondsFloat ->
+                                viewModel.setCustomRelockSeconds(secondsFloat.toInt())
+                            },
+                            valueRange = 0f..600f,
+                            steps = 19, // In 30-second steps
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Text(
+                            text = "Quick Presets:",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        // Quick Presets Chips
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val presets = listOf(
+                                Triple("Immediately", RelockPolicy.IMMEDIATE, 0),
+                                Triple("15 seconds", RelockPolicy.GRACE_15S, 15),
+                                Triple("30 seconds", RelockPolicy.GRACE_30S, 30),
+                                Triple("1 minute", RelockPolicy.GRACE_1M, 60),
+                                Triple("3 minutes", RelockPolicy.GRACE_3M, 180),
+                                Triple("5 minutes", RelockPolicy.GRACE_5M, 300),
+                                Triple("10 minutes", RelockPolicy.GRACE_10M, 600),
+                                Triple("Screen Off", RelockPolicy.SCREEN_OFF, -1)
+                            )
+                            presets.forEach { (label, policy, _) ->
+                                val isSelected = uiState.settings.relockPolicy == policy
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { viewModel.setRelockPolicy(policy) },
+                                    label = { Text(label) },
+                                    leadingIcon = if (isSelected) {
+                                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                    } else null
+                                )
                             }
                         }
                     }
@@ -335,7 +531,7 @@ fun SecurityScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showChangePinModal = false }) {
-                    Text("Cancel")
+                    Text(appString("cancel"))
                 }
             }
         )

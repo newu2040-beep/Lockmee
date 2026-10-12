@@ -11,6 +11,7 @@ import com.example.domain.model.AuthMethod
 import com.example.domain.model.RelockPolicy
 import com.example.domain.model.UserSecuritySettings
 import com.example.platform.biometric.BiometricHelper
+import com.example.platform.camera.IntruderCameraManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,8 +21,7 @@ data class SecurityUiState(
     val settings: UserSecuritySettings = UserSecuritySettings(),
     val isBiometricHardwareAvailable: Boolean = false,
     val biometricStatusMessage: String = "",
-    val showChangeCredDialog: Boolean = false,
-    val isReauthenticating: Boolean = false
+    val isCameraPermissionGranted: Boolean = false
 )
 
 class SecurityViewModel(
@@ -33,7 +33,7 @@ class SecurityViewModel(
     val uiState: StateFlow<SecurityUiState> = _uiState.asStateFlow()
 
     init {
-        checkBiometrics()
+        checkHardware()
         viewModelScope.launch {
             dataStore.securitySettings.collect { settings ->
                 _uiState.value = _uiState.value.copy(settings = settings)
@@ -41,11 +41,13 @@ class SecurityViewModel(
         }
     }
 
-    private fun checkBiometrics() {
+    fun checkHardware() {
         val (available, message) = BiometricHelper.isBiometricAvailable(context)
+        val cameraGranted = IntruderCameraManager.isCameraPermissionGranted(context)
         _uiState.value = _uiState.value.copy(
             isBiometricHardwareAvailable = available,
-            biometricStatusMessage = message
+            biometricStatusMessage = message,
+            isCameraPermissionGranted = cameraGranted
         )
     }
 
@@ -60,14 +62,37 @@ class SecurityViewModel(
         }
     }
 
-    fun setRelockPolicy(policy: RelockPolicy) {
+    fun setRelockPolicy(policy: RelockPolicy, customSeconds: Int = 0) {
         viewModelScope.launch {
-            dataStore.setRelockPolicy(policy)
+            dataStore.setRelockPolicy(policy, customSeconds)
             SecurityEventRepository.logEvent(
                 eventType = "Relock Policy Changed",
-                details = "Changed policy to ${policy.displayName}",
+                details = "Policy set to ${policy.displayName}",
                 isSuccess = true
             )
+        }
+    }
+
+    fun setCustomRelockSeconds(seconds: Int) {
+        viewModelScope.launch {
+            dataStore.setCustomRelockSeconds(seconds)
+        }
+    }
+
+    fun setIntruderDetectionEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStore.setIntruderCaptureEnabled(enabled)
+            SecurityEventRepository.logEvent(
+                eventType = if (enabled) "Intruder Detection Enabled" else "Intruder Detection Disabled",
+                details = "Intruder secret camera selfie capture changed to $enabled",
+                isSuccess = true
+            )
+        }
+    }
+
+    fun setIntruderThreshold(threshold: Int) {
+        viewModelScope.launch {
+            dataStore.setIntruderThreshold(threshold)
         }
     }
 

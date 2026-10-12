@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.ui.components.AppLogoIcon
 import com.example.ui.components.ProtectionStatusCard
 import com.example.ui.components.SecurityEventRow
 import com.example.ui.components.StatCard
@@ -31,6 +32,7 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val needsSetup = !uiState.permissionStatus.usageAccessGranted
+    val isCompact = uiState.settings.compactModeEnabled
 
     Scaffold(
         topBar = {
@@ -40,17 +42,24 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Security,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
+                        AppLogoIcon(
+                            customUriString = uiState.settings.customLogoUri,
+                            modifier = Modifier.size(34.dp)
                         )
-                        Text(
-                            text = "LockMe",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Column {
+                            Text(
+                                text = uiState.settings.customAppAlias.ifBlank { "LockMe" },
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (uiState.settings.deviceAdminEnabled) {
+                                Text(
+                                    text = "Anti-Uninstall Protected",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
                     }
                 },
                 actions = {
@@ -69,11 +78,11 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = if (isCompact) 12.dp else 16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isCompact) 10.dp else 16.dp)
         ) {
             item {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 // Protection status banner
                 ProtectionStatusCard(
                     isProtected = !uiState.settings.protectionPaused && !needsSetup,
@@ -86,22 +95,22 @@ fun HomeScreen(
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(if (isCompact) 8.dp else 12.dp)
                 ) {
                     StatCard(
-                        title = "Protected Apps",
+                        title = "Shielded",
                         value = "${uiState.protectedAppsCount}",
                         icon = Icons.Default.Lock,
                         modifier = Modifier.weight(1f)
                     )
                     StatCard(
-                        title = "Security Method",
+                        title = "Method",
                         value = uiState.settings.authMethod.name,
                         icon = Icons.Default.Key,
                         modifier = Modifier.weight(1f)
                     )
                     StatCard(
-                        title = "Monitoring",
+                        title = "Status",
                         value = if (uiState.isMonitoringActive && !uiState.settings.protectionPaused) "Active" else "Idle",
                         icon = Icons.Default.CheckCircle,
                         modifier = Modifier.weight(1f)
@@ -115,14 +124,14 @@ fun HomeScreen(
                     text = "Quick Actions",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
 
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     FilledTonalButton(
                         onClick = onNavigateToApps,
@@ -132,8 +141,8 @@ fun HomeScreen(
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Icon(Icons.Default.Apps, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Choose Apps")
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Apps & Games")
                     }
 
                     FilledTonalButton(
@@ -144,8 +153,8 @@ fun HomeScreen(
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Icon(Icons.Default.LockReset, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Security Center")
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Security")
                     }
                 }
             }
@@ -172,12 +181,12 @@ fun HomeScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 12.dp),
+                        .padding(top = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Security Audit Log",
+                        text = "Real-Time Audit Log",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )

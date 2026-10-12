@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Vector shield and lock for Material You Android 13+ themed adaptive monochrome icons -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,24 C40,24 34,31 34,31 L34,54 C34,69 54,84 54,84 C54,84 74,69 74,54 L74,31 C74,31 68,24 54,24 Z M54,41 C57.31,41 60,43.69 60,47 L60,50 C61.1,50 62,50.9 62,52 L62,63 C62,64.1 61.1,65 60,65 L48,65 C46.9,65 46,64.1 46,63 L46,52 C46,50.9 46.9,50 48,50 L48,47 C48,43.69 50.69,41 54,41 Z M54,44 C52.34,44 51,45.34 51,47 L51,50 L57,50 L57,47 C57,45.34 55.66,44 54,44 Z" />
+</vector>

@@ -8,6 +8,7 @@ import android.os.Build
 import com.example.data.preferences.SettingsDataStore
 import com.example.data.repository.SecurityEventRepository
 import com.example.domain.model.RelockPolicy
+import com.example.domain.model.UserSecuritySettings
 import com.example.ui.auth.AuthLockActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -59,7 +60,7 @@ object AppLockEngine {
                     if (currentForeground != null && currentForeground != context.packageName) {
                         if (protectedPkgs.contains(currentForeground)) {
                             // Check if this package is currently unlocked within grace period
-                            val isUnlocked = isPackageUnlocked(currentForeground, settings.relockPolicy)
+                            val isUnlocked = isPackageUnlocked(currentForeground, settings)
 
                             if (!isUnlocked && !isAuthScreenVisible && currentForeground != lastForegroundPackage) {
                                 // Need to trigger lock screen for this package!
@@ -78,7 +79,7 @@ object AppLockEngine {
                     // Fail-safe protection loop
                 }
 
-                delay(400) // 400ms check interval for responsive foreground detection
+                delay(350) // 350ms check interval for high-responsiveness
             }
         }
     }
@@ -113,16 +114,20 @@ object AppLockEngine {
         return lastPkg
     }
 
-    private fun isPackageUnlocked(packageName: String, policy: RelockPolicy): Boolean {
+    private fun isPackageUnlocked(packageName: String, settings: UserSecuritySettings): Boolean {
         val unlockTime = unlockedPackages[packageName] ?: return false
         val now = System.currentTimeMillis()
 
-        return when (policy) {
-            RelockPolicy.IMMEDIATE -> false // Relock immediately when foreground checked next time
-            RelockPolicy.GRACE_30S -> (now - unlockTime) < 30_000
-            RelockPolicy.GRACE_1M -> (now - unlockTime) < 60_000
-            RelockPolicy.GRACE_5M -> (now - unlockTime) < 300_000
-            RelockPolicy.SCREEN_OFF -> true // Persists until screen turns off
+        return when (settings.relockPolicy) {
+            RelockPolicy.IMMEDIATE -> false
+            RelockPolicy.CUSTOM -> (now - unlockTime) < (settings.customRelockSeconds * 1000L)
+            RelockPolicy.GRACE_15S -> (now - unlockTime) < 15_000L
+            RelockPolicy.GRACE_30S -> (now - unlockTime) < 30_000L
+            RelockPolicy.GRACE_1M -> (now - unlockTime) < 60_000L
+            RelockPolicy.GRACE_3M -> (now - unlockTime) < 180_000L
+            RelockPolicy.GRACE_5M -> (now - unlockTime) < 300_000L
+            RelockPolicy.GRACE_10M -> (now - unlockTime) < 600_000L
+            RelockPolicy.SCREEN_OFF -> true
         }
     }
 
@@ -136,7 +141,6 @@ object AppLockEngine {
     }
 
     fun onScreenOff() {
-        // Relock all packages
         unlockedPackages.clear()
         lastForegroundPackage = null
     }

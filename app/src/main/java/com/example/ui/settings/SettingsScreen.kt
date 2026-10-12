@@ -1,6 +1,11 @@
 package com.example.ui.settings
 
+import android.app.Activity
+import android.content.Context
+import android.net.Uri
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,8 +26,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.domain.model.ExpressivePalette
+import com.example.domain.model.LockscreenEffect
 import com.example.domain.model.ThemeMode
 import com.example.platform.permissions.PermissionManager
+import com.example.ui.components.AppLogoIcon
 import com.example.ui.components.SettingsClickableRow
 import com.example.ui.theme.*
 
@@ -36,13 +43,25 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var newAliasText by remember { mutableStateOf(uiState.settings.customAppAlias) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.setCustomLogoUri(uri.toString())
+        }
+    }
+
+    val isCompact = uiState.settings.compactModeEnabled
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "Settings",
+                        text = "Settings & Customization",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -55,34 +74,298 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = if (isCompact) 12.dp else 16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isCompact) 12.dp else 16.dp)
         ) {
+            // 1. DISGUISE, NAME & GALLERY LOGO CUSTOMIZATION
             item {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Material 3 Expressive Themes",
+                    text = "App Identity & Camouflage",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
 
-            // Theme Mode
             item {
                 Card(
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            AppLogoIcon(
+                                customUriString = uiState.settings.customLogoUri,
+                                modifier = Modifier.size(56.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = uiState.settings.customAppAlias.ifBlank { "LockMe" },
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Custom app title & gallery icon",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            FilledTonalButton(
+                                onClick = {
+                                    newAliasText = uiState.settings.customAppAlias
+                                    showRenameDialog = true
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Rename App")
+                            }
+
+                            FilledTonalButton(
+                                onClick = {
+                                    photoPickerLauncher.launch("image/*")
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Pick Logo")
+                            }
+                        }
+
+                        if (uiState.settings.customLogoUri.isNotBlank()) {
+                            TextButton(
+                                onClick = { viewModel.setCustomLogoUri("") },
+                                modifier = Modifier.align(Alignment.End)
+                            ) {
+                                Text("Reset to default icon")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. ANTI-UNINSTALL & HIDE PROTECTION
+            item {
+                Text(
+                    text = "Anti-Uninstall & Stealth Protection",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            item {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Anti-Uninstall (Device Admin)",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Locks uninstallation so unauthorized users or intruders cannot remove LockMe",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = uiState.permissionStatus.deviceAdminGranted,
+                                onCheckedChange = { isChecked ->
+                                    if (context is Activity) {
+                                        viewModel.toggleDeviceAdmin(context, isChecked)
+                                    }
+                                }
+                            )
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Hide from Launcher (Stealth Mode)",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Removes LockMe icon from Android app drawer for discrete protection",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = uiState.settings.hideFromLauncher,
+                                onCheckedChange = { isChecked ->
+                                    viewModel.toggleHideFromLauncher(isChecked)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 3. LOCKSCREEN OVERLAY EFFECTS
+            item {
+                Text(
+                    text = "Lockscreen Overlay & Visual Effects",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            item {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        LockscreenEffect.values().forEach { effect ->
+                            val isSelected = uiState.settings.lockscreenEffect == effect
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { viewModel.setLockscreenEffect(effect) }
+                                    .border(
+                                        width = if (isSelected) 2.dp else 0.dp,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                                else MaterialTheme.colorScheme.surface
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = when (effect) {
+                                            LockscreenEffect.BLUR_GLASS -> Icons.Default.BlurOn
+                                            LockscreenEffect.CYBER_SHIELD -> Icons.Default.Security
+                                            LockscreenEffect.MINIMAL_OLED -> Icons.Default.Contrast
+                                            LockscreenEffect.AURORA -> Icons.Default.Gradient
+                                        },
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = effect.displayName,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            text = effect.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    RadioButton(
+                                        selected = isSelected,
+                                        onClick = { viewModel.setLockscreenEffect(effect) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. DISPLAY COMPACT MODE & THEMES
+            item {
+                Text(
+                    text = "Display Adaptation & Themes",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            item {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Compact Mode for Small Displays
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Compact Layout Mode",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Auto-scales keypad, paddings, and font sizes to comfortably fit small display phones",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = uiState.settings.compactModeEnabled,
+                                onCheckedChange = { viewModel.setCompactMode(it) }
+                            )
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
                         Text(
                             text = "Light / Dark Appearance",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Medium
                         )
-
-                        Spacer(modifier = Modifier.height(10.dp))
 
                         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                             ThemeMode.values().forEachIndexed { index, mode ->
@@ -94,30 +377,13 @@ fun SettingsScreen(
                                 )
                             }
                         }
-                    }
-                }
-            }
 
-            // Expressive Color Palettes
-            item {
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
                         Text(
                             text = "Material You Expressive Palette",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Choose from dynamic wallpaper colors or hand-crafted Material 3 expressive themes",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            fontWeight = FontWeight.Medium
                         )
 
                         ExpressivePalette.values().forEach { palette ->
@@ -128,36 +394,45 @@ fun SettingsScreen(
                                 ExpressivePalette.EMERALD -> EmeraldLightPrimary
                                 ExpressivePalette.AMBER -> AmberLightPrimary
                                 ExpressivePalette.MONOCHROME -> MonoLightPrimary
+                                ExpressivePalette.LAVENDER -> LavenderLightPrimary
+                                ExpressivePalette.MINT -> MintLightPrimary
+                                ExpressivePalette.OCEAN -> OceanLightPrimary
+                                ExpressivePalette.MIDNIGHT -> MidnightLightPrimary
+                                ExpressivePalette.ROSE -> RoseLightPrimary
+                                ExpressivePalette.SAGE -> SageLightPrimary
+                                ExpressivePalette.PEACH -> PeachLightPrimary
+                                ExpressivePalette.GRAPHITE -> GraphiteLightPrimary
+                                ExpressivePalette.AURORA -> AuroraLightPrimary
                             }
 
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .clip(RoundedCornerShape(12.dp))
                                     .clickable { viewModel.setExpressivePalette(palette) }
                                     .border(
                                         width = if (isSelected) 2.dp else 0.dp,
                                         color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                        shape = RoundedCornerShape(14.dp)
+                                        shape = RoundedCornerShape(12.dp)
                                     ),
-                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
                                 else MaterialTheme.colorScheme.surface
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(14.dp),
+                                    modifier = Modifier.padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(36.dp)
+                                            .size(32.dp)
                                             .clip(CircleShape)
                                             .background(previewColor)
                                     )
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = palette.displayName,
-                                            style = MaterialTheme.typography.bodyLarge,
+                                            style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.SemiBold
                                         )
                                         Text(
@@ -177,48 +452,14 @@ fun SettingsScreen(
                 }
             }
 
-            // Haptics & Feedback
-            item {
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Haptic Vibration Feedback",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = "Vibrate on keypad clicks and auth transitions",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = uiState.settings.hapticsEnabled,
-                                onCheckedChange = { viewModel.setHaptics(it) }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Diagnostics & Permissions
+            // 5. DIAGNOSTICS & SYSTEM PERMISSIONS
             item {
                 Text(
-                    text = "System Diagnostics & Protection Health",
+                    text = "System Diagnostics & Capabilities",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
 
@@ -230,10 +471,10 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         SettingsClickableRow(
-                            title = "Permission & Capability Diagnostics",
-                            subtitle = if (uiState.permissionStatus.usageAccessGranted) "All required permissions granted" else "Usage Access missing",
+                            title = "Permission & Protection Diagnostics",
+                            subtitle = if (uiState.permissionStatus.usageAccessGranted) "Usage Access active" else "Usage Access missing",
                             icon = Icons.Default.HealthAndSafety,
-                            trailingText = if (uiState.permissionStatus.usageAccessGranted) "Healthy" else "Action needed",
+                            trailingText = if (uiState.permissionStatus.usageAccessGranted) "Active" else "Fix",
                             onClick = onNavigateToPermissions
                         )
 
@@ -259,17 +500,7 @@ fun SettingsScreen(
                 }
             }
 
-            // About & Credits
-            item {
-                Text(
-                    text = "About LockMe",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
+            // About LockMe
             item {
                 Card(
                     shape = RoundedCornerShape(20.dp),
@@ -328,6 +559,40 @@ fun SettingsScreen(
         }
     }
 
+    // Rename Dialog
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Rename LockMe Display Title", fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = newAliasText,
+                    onValueChange = { newAliasText = it },
+                    label = { Text("App Alias") },
+                    placeholder = { Text("e.g. Calculator, Notes, Clock") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.setCustomAppAlias(newAliasText)
+                        showRenameDialog = false
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     if (showAboutDialog) {
         AlertDialog(
             onDismissRequest = { showAboutDialog = false },
@@ -341,11 +606,11 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                        text = "• PBKDF2 Cryptography: Passcodes are cryptographically hashed using PBKDF2WithHmacSHA256 with unique device salts.",
+                        text = "• Anti-Uninstall Device Administrator: Prevents malicious uninstallation through system-level device policy manager.",
                         style = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                        text = "• Android BiometricPrompt: Hardware-backed biometrics are handled strictly by the Android OS; LockMe never accesses raw biometric templates.",
+                        text = "• Camouflage & Stealth: Rename the application and upload custom icons directly from your device gallery.",
                         style = MaterialTheme.typography.bodySmall
                     )
                     Text(

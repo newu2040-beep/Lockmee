@@ -1,7 +1,8 @@
 package com.example.ui.components
 
 import android.content.Context
-import android.graphics.drawable.Drawable
+import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -27,6 +28,55 @@ import androidx.core.graphics.drawable.toBitmap
 import com.example.domain.model.AppProtection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+@Composable
+fun AppLogoIcon(
+    customUriString: String?,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var customBitmap by remember(customUriString) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+
+    LaunchedEffect(customUriString) {
+        if (!customUriString.isNullOrBlank()) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val uri = Uri.parse(customUriString)
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        val bmp = BitmapFactory.decodeStream(stream)
+                        customBitmap = bmp?.asImageBitmap()
+                    }
+                } catch (e: Exception) {
+                    customBitmap = null
+                }
+            }
+        } else {
+            customBitmap = null
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primaryContainer),
+        contentAlignment = Alignment.Center
+    ) {
+        if (customBitmap != null) {
+            Image(
+                bitmap = customBitmap!!,
+                contentDescription = "Custom Logo",
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.Shield,
+                contentDescription = "LockMe",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.fillMaxSize(0.6f)
+            )
+        }
+    }
+}
 
 @Composable
 fun AppIconView(

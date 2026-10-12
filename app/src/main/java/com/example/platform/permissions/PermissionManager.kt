@@ -2,8 +2,11 @@ package com.example.platform.permissions
 
 import android.app.Activity
 import android.app.AppOpsManager
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
@@ -11,7 +14,9 @@ import android.os.Process
 import android.provider.Settings
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.example.MainActivity
 import com.example.domain.model.PermissionStatus
+import com.example.platform.lifecycle.LockMeDeviceAdminReceiver
 
 object PermissionManager {
 
@@ -68,12 +73,64 @@ object PermissionManager {
         return powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: true
     }
 
+    fun checkDeviceAdmin(context: Context): Boolean {
+        val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager ?: return false
+        val componentName = ComponentName(context, LockMeDeviceAdminReceiver::class.java)
+        return dpm.isAdminActive(componentName)
+    }
+
+    fun requestDeviceAdmin(activity: Activity) {
+        val componentName = ComponentName(activity, LockMeDeviceAdminReceiver::class.java)
+        val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, componentName)
+            putExtra(
+                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                "Activating Device Administrator prevents LockMe from being uninstalled or force-stopped without authorization."
+            )
+        }
+        activity.startActivity(intent)
+    }
+
+    fun removeDeviceAdmin(context: Context) {
+        val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager ?: return
+        val componentName = ComponentName(context, LockMeDeviceAdminReceiver::class.java)
+        if (dpm.isAdminActive(componentName)) {
+            dpm.removeActiveAdmin(componentName)
+        }
+    }
+
+    fun setAppHiddenFromLauncher(context: Context, hide: Boolean) {
+        val p = context.packageManager
+        val componentName = ComponentName(context, MainActivity::class.java)
+        val newState = if (hide) {
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+        } else {
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+        }
+        p.setComponentEnabledSetting(componentName, newState, PackageManager.DONT_KILL_APP)
+    }
+
+    fun isAppHiddenFromLauncher(context: Context): Boolean {
+        val p = context.packageManager
+        val componentName = ComponentName(context, MainActivity::class.java)
+        return p.getComponentEnabledSetting(componentName) == PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+    }
+
+    fun checkCameraPermission(context: Context): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     fun getFullPermissionStatus(context: Context): PermissionStatus {
         return PermissionStatus(
             usageAccessGranted = checkUsageAccess(context),
             overlayGranted = checkOverlayPermission(context),
             notificationsGranted = checkNotificationPermission(context),
             batteryOptimizationIgnored = checkBatteryOptimizationIgnored(context),
+            deviceAdminGranted = checkDeviceAdmin(context),
+            cameraGranted = checkCameraPermission(context),
             lastCheckedTimestamp = System.currentTimeMillis()
         )
     }

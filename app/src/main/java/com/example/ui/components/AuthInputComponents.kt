@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +24,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Canvas
@@ -36,24 +37,29 @@ fun SecurePinKeypad(
     onDigitPress: (Char) -> Unit,
     onDeletePress: () -> Unit,
     errorMessage: String? = null,
+    isCompact: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val keySize: Dp = if (isCompact) 60.dp else 72.dp
+    val spacing: Dp = if (isCompact) 18.dp else 26.dp
+    val dotSize: Dp = if (isCompact) 14.dp else 18.dp
+
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(if (isCompact) 10.dp else 16.dp)
     ) {
         // PIN dot indicators
         Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (isCompact) 12.dp else 16.dp),
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(vertical = 12.dp)
+            modifier = Modifier.padding(vertical = if (isCompact) 6.dp else 12.dp)
         ) {
             for (i in 0 until pinLength) {
                 val isFilled = i < enteredPin.length
                 Box(
                     modifier = Modifier
-                        .size(18.dp)
+                        .size(dotSize)
                         .clip(CircleShape)
                         .background(
                             if (errorMessage != null) MaterialTheme.colorScheme.error
@@ -75,14 +81,14 @@ fun SecurePinKeypad(
             Text(
                 text = errorMessage,
                 color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+                style = if (isCompact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 24.dp)
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(if (isCompact) 4.dp else 8.dp))
 
         // 3x4 Keypad grid
         val keys = listOf(
@@ -94,13 +100,13 @@ fun SecurePinKeypad(
 
         for (row in keys) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(28.dp),
+                horizontalArrangement = Arrangement.spacedBy(spacing),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 for (key in row) {
                     when (key) {
                         null -> {
-                            Spacer(modifier = Modifier.size(72.dp))
+                            Spacer(modifier = Modifier.size(keySize))
                         }
                         '<' -> {
                             Surface(
@@ -108,7 +114,7 @@ fun SecurePinKeypad(
                                 shape = CircleShape,
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                                 modifier = Modifier
-                                    .size(72.dp)
+                                    .size(keySize)
                                     .testTag("keypad_delete_button")
                             ) {
                                 Box(
@@ -116,10 +122,10 @@ fun SecurePinKeypad(
                                     modifier = Modifier.fillMaxSize()
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Backspace,
+                                        imageVector = Icons.AutoMirrored.Filled.Backspace,
                                         contentDescription = "Delete",
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(26.dp)
+                                        modifier = Modifier.size(if (isCompact) 22.dp else 26.dp)
                                     )
                                 }
                             }
@@ -130,7 +136,7 @@ fun SecurePinKeypad(
                                 shape = CircleShape,
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                 modifier = Modifier
-                                    .size(72.dp)
+                                    .size(keySize)
                                     .testTag("keypad_digit_$key")
                             ) {
                                 Box(
@@ -139,7 +145,7 @@ fun SecurePinKeypad(
                                 ) {
                                     Text(
                                         text = key.toString(),
-                                        style = MaterialTheme.typography.headlineMedium,
+                                        style = if (isCompact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
@@ -157,11 +163,13 @@ fun SecurePinKeypad(
 fun PatternLockInput(
     onPatternComplete: (String) -> Unit,
     modifier: Modifier = Modifier,
+    isCompact: Boolean = false,
     errorMessage: String? = null
 ) {
     var selectedPoints by remember { mutableStateOf<List<Int>>(emptyList()) }
     var currentTouchPoint by remember { mutableStateOf<Offset?>(null) }
     var nodePositions by remember { mutableStateOf<Map<Int, Offset>>(emptyMap()) }
+    val canvasSize = if (isCompact) 240.dp else 280.dp
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -171,7 +179,7 @@ fun PatternLockInput(
             Text(
                 text = errorMessage,
                 color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+                style = if (isCompact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
@@ -179,7 +187,7 @@ fun PatternLockInput(
 
         Box(
             modifier = Modifier
-                .size(280.dp)
+                .size(canvasSize)
                 .testTag("pattern_lock_view")
                 .pointerInput(Unit) {
                     detectDragGestures(
@@ -273,7 +281,7 @@ fun PatternLockInput(
                     if (isSelected) {
                         drawCircle(
                             color = activeDotColor.copy(alpha = 0.25f),
-                            radius = 36f,
+                            radius = 34f,
                             center = pos
                         )
                     }

@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 
 data class HomeUiState(
     val settings: UserSecuritySettings = UserSecuritySettings(),
-    val permissionStatus: PermissionStatus = PermissionStatus(false, false, false, false, 0L),
+    val permissionStatus: PermissionStatus = PermissionStatus(false, false, false, false, false, false, 0L),
     val protectedAppsCount: Int = 0,
     val totalAppsCount: Int = 0,
     val recentEvents: List<SecurityEvent> = emptyList(),

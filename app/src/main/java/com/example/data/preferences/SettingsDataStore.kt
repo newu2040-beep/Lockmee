@@ -8,11 +8,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.example.domain.model.AuthMethod
-import com.example.domain.model.ExpressivePalette
-import com.example.domain.model.RelockPolicy
-import com.example.domain.model.ThemeMode
-import com.example.domain.model.UserSecuritySettings
+import com.example.domain.model.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -27,8 +23,11 @@ class SettingsDataStore(private val context: Context) {
         private val KEY_HASH = stringPreferencesKey("cred_hash")
         private val KEY_BIOMETRIC_ENABLED = booleanPreferencesKey("biometric_enabled")
         private val KEY_RELOCK_POLICY = stringPreferencesKey("relock_policy")
+        private val KEY_CUSTOM_RELOCK_SECONDS = intPreferencesKey("custom_relock_seconds")
         private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         private val KEY_EXPRESSIVE_PALETTE = stringPreferencesKey("expressive_palette")
+        private val KEY_LOCKSCREEN_EFFECT = stringPreferencesKey("lockscreen_effect")
+        private val KEY_APP_LANGUAGE = stringPreferencesKey("app_language")
         private val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         private val KEY_COMPACT_MODE = booleanPreferencesKey("compact_mode")
         private val KEY_HAPTICS = booleanPreferencesKey("haptics_enabled")
@@ -36,6 +35,13 @@ class SettingsDataStore(private val context: Context) {
         private val KEY_FAILED_ATTEMPTS = intPreferencesKey("failed_attempts")
         private val KEY_LOCKOUT_UNTIL = longPreferencesKey("lockout_until")
         private val KEY_PROTECTED_PACKAGES = stringSetPreferencesKey("protected_packages")
+        private val KEY_FAVORITE_PACKAGES = stringSetPreferencesKey("favorite_packages")
+        private val KEY_INTRUDER_ENABLED = booleanPreferencesKey("intruder_enabled")
+        private val KEY_INTRUDER_THRESHOLD = intPreferencesKey("intruder_threshold")
+        private val KEY_DEVICE_ADMIN = booleanPreferencesKey("device_admin_enabled")
+        private val KEY_HIDE_LAUNCHER = booleanPreferencesKey("hide_from_launcher")
+        private val KEY_CUSTOM_APP_ALIAS = stringPreferencesKey("custom_app_alias")
+        private val KEY_CUSTOM_LOGO_URI = stringPreferencesKey("custom_logo_uri")
     }
 
     val securitySettings: Flow<UserSecuritySettings> = context.dataStore.data.map { prefs ->
@@ -52,6 +58,7 @@ class SettingsDataStore(private val context: Context) {
             } catch (e: Exception) {
                 RelockPolicy.IMMEDIATE
             },
+            customRelockSeconds = prefs[KEY_CUSTOM_RELOCK_SECONDS] ?: 0,
             themeMode = try {
                 ThemeMode.valueOf(prefs[KEY_THEME_MODE] ?: ThemeMode.SYSTEM.name)
             } catch (e: Exception) {
@@ -62,17 +69,37 @@ class SettingsDataStore(private val context: Context) {
             } catch (e: Exception) {
                 ExpressivePalette.DYNAMIC
             },
+            lockscreenEffect = try {
+                LockscreenEffect.valueOf(prefs[KEY_LOCKSCREEN_EFFECT] ?: LockscreenEffect.BLUR_GLASS.name)
+            } catch (e: Exception) {
+                LockscreenEffect.BLUR_GLASS
+            },
+            appLanguage = try {
+                AppLanguage.valueOf(prefs[KEY_APP_LANGUAGE] ?: AppLanguage.ENGLISH.name)
+            } catch (e: Exception) {
+                AppLanguage.ENGLISH
+            },
             dynamicColorEnabled = prefs[KEY_DYNAMIC_COLOR] ?: true,
             compactModeEnabled = prefs[KEY_COMPACT_MODE] ?: false,
             hapticsEnabled = prefs[KEY_HAPTICS] ?: true,
             protectionPaused = prefs[KEY_PROTECTION_PAUSED] ?: false,
             failedAttempts = prefs[KEY_FAILED_ATTEMPTS] ?: 0,
-            lockOutUntilTimestamp = prefs[KEY_LOCKOUT_UNTIL] ?: 0L
+            lockOutUntilTimestamp = prefs[KEY_LOCKOUT_UNTIL] ?: 0L,
+            intruderCaptureEnabled = prefs[KEY_INTRUDER_ENABLED] ?: false,
+            intruderThresholdAttempts = prefs[KEY_INTRUDER_THRESHOLD] ?: 3,
+            deviceAdminEnabled = prefs[KEY_DEVICE_ADMIN] ?: false,
+            hideFromLauncher = prefs[KEY_HIDE_LAUNCHER] ?: false,
+            customAppAlias = prefs[KEY_CUSTOM_APP_ALIAS] ?: "LockMe",
+            customLogoUri = prefs[KEY_CUSTOM_LOGO_URI] ?: ""
         )
     }
 
     val protectedPackages: Flow<Set<String>> = context.dataStore.data.map { prefs ->
         prefs[KEY_PROTECTED_PACKAGES] ?: emptySet()
+    }
+
+    val favoritePackages: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        prefs[KEY_FAVORITE_PACKAGES] ?: emptySet()
     }
 
     suspend fun saveCredential(method: AuthMethod, salt: String, hash: String) {
@@ -104,9 +131,19 @@ class SettingsDataStore(private val context: Context) {
         }
     }
 
-    suspend fun setRelockPolicy(policy: RelockPolicy) {
+    suspend fun setRelockPolicy(policy: RelockPolicy, customSeconds: Int = 0) {
         context.dataStore.edit { prefs ->
             prefs[KEY_RELOCK_POLICY] = policy.name
+            if (policy == RelockPolicy.CUSTOM) {
+                prefs[KEY_CUSTOM_RELOCK_SECONDS] = customSeconds
+            }
+        }
+    }
+
+    suspend fun setCustomRelockSeconds(seconds: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_CUSTOM_RELOCK_SECONDS] = seconds
+            prefs[KEY_RELOCK_POLICY] = RelockPolicy.CUSTOM.name
         }
     }
 
@@ -123,12 +160,15 @@ class SettingsDataStore(private val context: Context) {
         }
     }
 
-    suspend fun setDynamicColor(enabled: Boolean) {
+    suspend fun setLockscreenEffect(effect: LockscreenEffect) {
         context.dataStore.edit { prefs ->
-            prefs[KEY_DYNAMIC_COLOR] = enabled
-            if (enabled) {
-                prefs[KEY_EXPRESSIVE_PALETTE] = ExpressivePalette.DYNAMIC.name
-            }
+            prefs[KEY_LOCKSCREEN_EFFECT] = effect.name
+        }
+    }
+
+    suspend fun setAppLanguage(language: AppLanguage) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_APP_LANGUAGE] = language.name
         }
     }
 
@@ -147,6 +187,50 @@ class SettingsDataStore(private val context: Context) {
     suspend fun setProtectionPaused(paused: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[KEY_PROTECTION_PAUSED] = paused
+        }
+    }
+
+    suspend fun setIntruderCaptureEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_INTRUDER_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setIntruderThreshold(threshold: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_INTRUDER_THRESHOLD] = threshold
+        }
+    }
+
+    suspend fun setDeviceAdminEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_DEVICE_ADMIN] = enabled
+        }
+    }
+
+    suspend fun setHideFromLauncher(hidden: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_HIDE_LAUNCHER] = hidden
+        }
+    }
+
+    suspend fun setCustomAppAlias(name: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_CUSTOM_APP_ALIAS] = name
+        }
+    }
+
+    suspend fun setCustomLogoUri(uriString: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_CUSTOM_LOGO_URI] = uriString
+        }
+    }
+
+    suspend fun toggleFavorite(packageName: String) {
+        context.dataStore.edit { prefs ->
+            val set = (prefs[KEY_FAVORITE_PACKAGES] ?: emptySet()).toMutableSet()
+            if (set.contains(packageName)) set.remove(packageName) else set.add(packageName)
+            prefs[KEY_FAVORITE_PACKAGES] = set
         }
     }
 
